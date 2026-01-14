@@ -1,91 +1,96 @@
 import mongoose from "mongoose";
-import jwt from "jsonwebtoken"
-import bcrypt from "bcrypt"
+import jwt from "jsonwebtoken";
+import bcrypt from "bcrypt";
 
-
-const userSchema= new mongoose.Schema({
-    username:{
-        type:String,
-        required:true,
-        unique:true,
-        lowercase:true,
-        trim:true,
-        index:true,         //searching field enabled => optimised way
+const userSchema = new mongoose.Schema({
+    username: {
+        type: String,
+        required: true,
+        unique: true,
+        lowercase: true,
+        trim: true,
+        index: true,
     },
-    email:{
-        type:String,
-        required:true,
-        unique:true,
-        lowercase:true,
-        trim:true,
+    email: {
+        type: String,
+        required: true,
+        unique: true,
+        lowercase: true,
+        trim: true,
     },
-    fullname:{
-        type:String,
-        required:true,
-        trim:true,
-        index:true,
+    fullname: {
+        type: String,
+        required: true,
+        trim: true,
+        index: true,
     },
-    avatar:{
-        type: String, //cloudinary url
-        required:true,
-
+    avatar: {
+        type: String, 
+        required: true,
     },
-    coverImaqe:{
-        type:String, //cloudinary url
+    coverImage: { // Fixed typo: changed 'coverImaqe' to 'coverImage'
+        type: String, 
     },
-    watchHistory:[
+    watchHistory: [
         {
             type: mongoose.Schema.Types.ObjectId,
-            ref:"Video",
+            ref: "Video",
         }
     ],
-    password:{
-        type:String,
-        required:[true,"please enter the password"],
+    password: {
+        type: String,
+        required: [true, "please enter the password"],
     },
-    refreshToken:{
-        type:String,
+    refreshToken: {
+        type: String,
     }
+}, { timestamps: true });
 
-},{timestamps:true})
+// Hash password before saving
 
+// REMOVE 'next' from the parameters
+userSchema.pre("save", async function () { 
+    // If password isn't modified, just return to stop execution of this hook
+    if (!this.isModified("password")) return;
 
-userSchema.pre("save", async function (next){ // wrong=> ()=>{} No this context
-    if(!this.isModified("password"))return next();
-
-    this.password= bcrypt.hash(this.password,10);
+    // Hash the password
+    this.password = await bcrypt.hash(this.password, 10);
     
-    next();
-})
-userSchema.methods.isPasswordCorrect= async function (password) {
-   return await bcrypt.compare(password,this.password)
-}
+    // No need to call next() in an async function!
+    // Mongoose will proceed once this function finishes.
+});
 
-userSchema.methods.generateAccessToken= async function(){
-    return await jwt.sign(
+// Method to check password
+userSchema.methods.isPasswordCorrect = async function (password) {
+    return await bcrypt.compare(password, this.password);
+};
+
+// FIX: Removed 'async' and 'await' so these return STRINGS immediately
+userSchema.methods.generateAccessToken = function() {
+    return jwt.sign(
         {
-            _id:this._id,
-            email:this.email,
-            username:this.username,
-            fullname:this.fullname,
+            _id: this._id,
+            email: this.email,
+            username: this.username,
+            fullname: this.fullname,
         },
         process.env.ACCESS_TOKEN_SECRET,
         {
             expiresIn: process.env.ACCESS_TOKEN_EXPIRY
         }
-    )
-}
-userSchema.method.generateRefreshToken=async function(){
-        return await jwt.sign(
-        {
-            _id:this._id,
+    );
+};
 
+userSchema.methods.generateRefreshToken = function() {
+    return jwt.sign(
+        {
+            _id: this._id,
         },
         process.env.REFRESH_TOKEN_SECRET,
         {
             expiresIn: process.env.REFRESH_TOKEN_EXPIRY
         }
-    )
-}
+    );
+};
 
-export const User=mongoose.model("User",userSchema)
+export const User = mongoose.model("User", userSchema);
